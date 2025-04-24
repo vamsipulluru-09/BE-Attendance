@@ -35,6 +35,23 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libgl1-mesa-glx \
     ffmpeg \
+    libatlas-base-dev \
+    libjasper-dev \
+    libqtgui4 \
+    libqt4-test \
+    libhdf5-dev \
+    libhdf5-serial-dev \
+    libharfbuzz0b \
+    libwebp6 \
+    libtiff5 \
+    libjasper1 \
+    libopenexr23 \
+    libgstreamer1.0-0 \
+    libavcodec58 \
+    libavformat58 \
+    libswscale5 \
+    libcblas3 \
+    libatlas-base-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
