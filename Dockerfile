@@ -31,6 +31,7 @@ FROM python:3.9.18-slim
 # Add necessary repositories
 RUN apt-get update && apt-get install -y \
     software-properties-common \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install system dependencies
@@ -42,13 +43,13 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     ffmpeg \
     libatlas-base-dev \
-    libjasper1 \
+    libjasper-dev \
     libhdf5-dev \
     libhdf5-serial-dev \
     libharfbuzz0b \
     libwebp7 \
     libtiff6 \
-    libopenexr25 \
+    libopenexr-dev \
     libgstreamer1.0-0 \
     libavcodec-extra \
     libavformat59 \
