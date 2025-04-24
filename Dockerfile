@@ -4,13 +4,24 @@ WORKDIR /app
 
 COPY requirements.txt .
 
+# Install build dependencies and optimize memory usage
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    pkg-config \
+    libx11-dev \
+    libatlas-base-dev \
+    libgtk-3-dev \
+    libboost-python-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
+
+# Set environment variables to optimize memory usage
+ENV MAKEFLAGS="-j4"
+ENV CFLAGS="-O2"
+ENV CXXFLAGS="-O2"
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
