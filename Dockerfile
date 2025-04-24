@@ -28,6 +28,12 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 FROM python:3.9.18-slim
 
+# Add necessary repositories
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     libsm6 \
     libxext6 \
@@ -36,22 +42,19 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx \
     ffmpeg \
     libatlas-base-dev \
-    libjasper-dev \
-    libqtgui4 \
-    libqt4-test \
+    libjasper1 \
     libhdf5-dev \
     libhdf5-serial-dev \
     libharfbuzz0b \
-    libwebp6 \
-    libtiff5 \
-    libjasper1 \
-    libopenexr23 \
+    libwebp7 \
+    libtiff6 \
+    libopenexr25 \
     libgstreamer1.0-0 \
-    libavcodec58 \
-    libavformat58 \
-    libswscale5 \
-    libcblas3 \
-    libatlas-base-dev \
+    libavcodec-extra \
+    libavformat59 \
+    libswscale6 \
+    libopenblas-dev \
+    liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/venv /opt/venv
