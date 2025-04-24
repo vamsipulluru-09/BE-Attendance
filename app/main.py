@@ -19,12 +19,14 @@ from datetime import datetime, timedelta
 
 load_dotenv()
 
-
-
-MAX_DISTANCE = int(os.getenv('MAX_DISTANCE', '50'))
+MAX_DISTANCE = os.getenv('MAX_DISTANCE')
+if not MAX_DISTANCE:
+    raise ValueError("Missing required environment variable: MAX_DISTANCE")
+MAX_DISTANCE = int(MAX_DISTANCE)
 
 ADMIN_PASSCODE = os.getenv('ADMIN_PASSCODE')
-
+if not ADMIN_PASSCODE:
+    raise ValueError("Missing required environment variable: ADMIN_PASSCODE")
 
 app = FastAPI()
 
@@ -38,12 +40,18 @@ app.add_middleware(
 )
 
 db_params = {
-    'dbname': os.getenv('DB_NAME', 'face_recognition'),
-    'user': os.getenv('DB_USER', 'postgres'),
-    'password': os.getenv('DB_PASSWORD', 'password'),
-    'host': os.getenv('DB_HOST', 'pgvector-db'),
-    'port': os.getenv('DB_PORT', '5432')
+    'dbname': os.getenv('DB_NAME'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'host': os.getenv('DB_HOST'),
+    'port': os.getenv('DB_PORT')
 }
+
+# Validate required environment variables
+required_env_vars = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT']
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_vars:
+    raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
 
 # Initialize database handler
 db_handler = FaceEmbeddingDB(db_params)
