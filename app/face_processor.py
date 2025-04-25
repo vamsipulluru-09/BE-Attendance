@@ -14,7 +14,7 @@ load_dotenv()
 APP_URL = os.getenv('APP_URL')
 EMAIL_USERNAME = os.getenv('EMAIL_USERNAME')
 EMAIL_HOST = os.getenv('EMAIL_HOST')
-EMAIL_PORT = os.getenv('EMAIL_POST')
+EMAIL_PORT = os.getenv('EMAIL_PORT')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 
 

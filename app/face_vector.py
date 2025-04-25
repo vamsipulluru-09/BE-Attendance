@@ -3,6 +3,7 @@ import psycopg2
 import numpy as np
 from psycopg2.extras import execute_values
 from datetime import datetime, timedelta, timezone
+import psycopg2.extensions
 
 import secrets
 from dotenv import load_dotenv
@@ -21,16 +22,47 @@ class FaceEmbeddingDB:
         self.create_tables()
 
     def connect(self):
+        """Establish a database connection and close any existing connection."""
         try:
+            # Close existing connection if it exists
+            if self.conn is not None:
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
+                self.conn = None
+                
+            # Create a new connection
             self.conn = psycopg2.connect(**self.db_params)
             print("Successfully connected to the database")
         except Exception as e:
             print(f"Error connecting to database: {e}")
             raise
 
+    def ensure_connection(self):
+        """Ensure the database connection is valid, reconnect if necessary."""
+        try:
+            # Check if connection is valid
+            if self.conn is None or self.conn.closed:
+                print("Connection is closed or None, reconnecting...")
+                self.connect()
+                return
+                
+            # Try a simple query to test the connection
+            with self.conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+            print(f"Connection error detected: {e}, reconnecting...")
+            self.connect()
+        except Exception as e:
+            print(f"Unexpected error checking connection: {e}")
+            self.connect()
+
     def create_tables(self):
         """Create necessary tables if they don't exist."""
         try:
+            self.ensure_connection()
             create_tables_query = """
             CREATE EXTENSION IF NOT EXISTS vector;
             
@@ -380,8 +412,13 @@ class FaceEmbeddingDB:
     def close(self):
         """Close the database connection."""
         if self.conn:
-            self.conn.close()
-            print("Database connection closed")
+            try:
+                self.conn.close()
+                print("Database connection closed")
+            except Exception as e:
+                print(f"Error closing database connection: {e}")
+            finally:
+                self.conn = None
             
     def get_all_employees(self) -> List[Dict[str, any]]:
             """
@@ -424,6 +461,7 @@ class FaceEmbeddingDB:
     def create_admin_verification_token(self, email: str) -> str:
         """Create a verification token for admin registration."""
         try:
+            self.ensure_connection()
             # Generate a secure token
             token = secrets.token_urlsafe(32)
             
@@ -445,12 +483,14 @@ class FaceEmbeddingDB:
                 return result[0]
         except Exception as e:
             print(f"Error creating admin verification token: {e}")
-            self.conn.rollback()
+            if self.conn:
+                self.conn.rollback()
             return None
 
     def verify_admin_token(self, token: str, username: str, password_hash: str) -> bool:
         """Verify admin token and create admin account."""
         try:
+            self.ensure_connection()
             with self.conn.cursor() as cur:
                 # Get token information
                 cur.execute("""
@@ -487,13 +527,15 @@ class FaceEmbeddingDB:
                 return True
         except Exception as e:
             print(f"Error verifying admin token: {e}")
-            self.conn.rollback()
+            if self.conn:
+                self.conn.rollback()
             return False
         
 
     def verify_admin_credentials(self, username: str, password_hash: str) -> bool:
         """Verify admin login credentials."""
         try:
+            self.ensure_connection()
             with self.conn.cursor() as cur:
                 cur.execute("""
                     SELECT id FROM admins

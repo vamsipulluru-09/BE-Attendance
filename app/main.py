@@ -2,7 +2,7 @@ import psycopg2
 import numpy as np
 from typing import List, Dict, Optional
 from psycopg2.extras import execute_values
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from .face_processor import FaceProcessor
 from .face_vector import FaceEmbeddingDB
@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from psycopg2 import OperationalError
 
 load_dotenv()
 
@@ -37,7 +38,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        os.getenv("APP_URL")  # Fallback to production URL
+        os.getenv("APP_URL")
     ],
     allow_credentials=True,
     allow_methods=["*"],  
@@ -63,6 +64,7 @@ db_handler = FaceEmbeddingDB(db_params)
 
 # Initialize face processor
 face_processor = FaceProcessor(db_handler)
+
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
     Calculate the great circle distance between two points
@@ -617,41 +619,44 @@ async def get_user_report(entity_id: str):
         }
         
 @app.post("/create-admin")
-async def create_admin(email: str = Form(...), passcode: str = Form(...)):
-    """
-    Create a new admin by sending a verification email.
-    
-    Args:
-        email: Email address for the new admin
-        passcode: Security passcode to authorize admin creation
-        
-    Returns:
-        Status of admin creation request
-    """
+async def create_admin(request: Request):
     try:
-        # Verify passcode
-        if passcode != ADMIN_PASSCODE:
-            raise HTTPException(status_code=401, detail="Invalid passcode")
-        
+        data = await request.json()
+        email = data.get("email")
+        passcode = data.get("passcode")
+
+        if not email or not passcode:
+            raise HTTPException(status_code=400, detail="Email and passcode are required")
+
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            return {"status": "error", "message": "Invalid email format"}
-        
-        token = db_handler.create_admin_verification_token(email)
-        if not token:
-            return {"status": "error", "message": "Failed to create verification token"}
-        
-        email_sent = face_processor.send_admin_verification_email(email, token)
-        if not email_sent:
-            return {"status": "error", "message": "Failed to send verification email"}
-            
-        return {
-            "status": "success",
-            "message": f"Verification email sent to {email}. Please check your email to complete admin setup."
-        }
-    except HTTPException as e:
-        return {"status": "error", "message": e.detail, "status_code": e.status_code}
+            raise HTTPException(status_code=400, detail="Invalid email format")
+
+        if passcode != os.getenv("ADMIN_PASSCODE"):
+            raise HTTPException(status_code=401, detail="Invalid passcode")
+
+        try:
+            token = db_handler.create_admin_verification_token(email)
+            if not token:
+                raise HTTPException(status_code=500, detail="Failed to create verification token")
+
+            # Send verification email
+            if not face_processor.send_admin_verification_email(email, token):
+                raise HTTPException(status_code=500, detail="Failed to send verification email")
+
+            return {"message": "Verification email sent successfully"}
+        except OperationalError as e:
+            print(f"Database operational error: {e}")
+            # Try to reconnect
+            db_handler.connect()
+            raise HTTPException(status_code=503, detail="Database connection error. Please try again.")
+        except Exception as e:
+            print(f"Error in create-admin: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"status": "error", "message": f"Error creating admin: {str(e)}"}
+        print(f"Unexpected error in create-admin: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 @app.post("/verify-admin-token")
 async def verify_admin(
@@ -1094,3 +1099,12 @@ async def get_attendance_report(startDate: str = None, endDate: str = None):
             
     except Exception as e:
         return {"status": "error", "message": f"Error generating attendance report: {str(e)}"}
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources when the application shuts down."""
+    try:
+        if db_handler:
+            db_handler.close()
+    except Exception as e:
+        print(f"Error during shutdown: {e}")
