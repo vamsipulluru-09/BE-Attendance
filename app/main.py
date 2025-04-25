@@ -16,6 +16,9 @@ import hashlib
 import re
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 load_dotenv()
 
@@ -33,7 +36,9 @@ app = FastAPI()
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins='*',
+    allow_origins=[
+        os.getenv("APP_URL")  # Fallback to production URL
+    ],
     allow_credentials=True,
     allow_methods=["*"],  
     allow_headers=["*"],
@@ -715,13 +720,63 @@ async def admin_login(username: str = Form(...), password: str = Form(...)):
             }
     except Exception as e:
         return {"status": "error", "message": f"Error during login: {str(e)}"}
+
+@app.post("/send-admin-credentials")
+async def send_admin_credentials(email: str = Form(...)):
+    """
+    Send admin access credentials to admin@support.com.
     
-    
-    
-    
-    
-    
-    
+    Args:
+        email: Email address to send credentials to
+        
+    Returns:
+        Status of email sending operation
+    """
+    try:
+        # Validate email format
+        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            return {"status": "error", "message": "Invalid email format"}
+        
+        EMAIL_HOST = os.getenv("EMAIL_HOST")
+        EMAIL_PORT = os.getenv("EMAIL_PORT")
+        EMAIL_USERNAME = os.getenv("EMAIL_USERNAME")
+        EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+        EMAIL_SUPPORT = os.getenv("EMAIL_SUPPORT")
+        
+        # Create a message with admin credentials
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_USERNAME
+        msg['To'] = EMAIL_SUPPORT
+        msg['Subject'] = "Admin Access Credentials Request"
+        
+        body = f"""
+        <html>
+        <body>
+            <h2>Admin Access Credentials Request</h2>
+            <p>A request for admin access credentials has been made from the following email:</p>
+            <p><strong>{email}</strong></p>
+            <p>Please review this request and take appropriate action.</p>
+            <p>This is an automated message from the Face Recognition Attendance System.</p>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        # Send the email
+        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT)
+        server.starttls()
+        server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
+        
+        server.send_message(msg)
+        server.quit()
+        
+        return {
+            "status": "success",
+            "message": "Sent successfully..! Wait for approval"
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Error sending admin credentials request: {str(e)}"}
 
 @app.get("/attendance/today/summary")
 async def today_attendance_summary():
